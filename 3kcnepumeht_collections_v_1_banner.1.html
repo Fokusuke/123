@@ -595,20 +595,6 @@ window.addEventListener("load", () => {
   <button onclick="toggleDebug()" style="float:right;background:#333;color:#fff;border:none;padding:5px 10px;cursor:pointer;">✖</button>
   <pre id="debugOutput"></pre>
 </div>
-
-<script>
-// ===== Отладочная панель =====
-function showDebug(data) {
-  const panel = document.getElementById("debugPanel");
-  const pre = document.getElementById("debugOutput");
-  pre.textContent = JSON.stringify(data, null, 2);
-  panel.style.display = "block";
-}
-
-function toggleDebug() {
-  const panel = document.getElementById("debugPanel");
-  panel.style.display = panel.style.display === "none" ? "block" : "none";
-}
 </script>
 </body>
 </html>
