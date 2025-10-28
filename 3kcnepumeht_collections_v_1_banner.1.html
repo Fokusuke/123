@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>WAX NFT Viewer (IndexedDB)</title>
+  <style>
+    body { background: #000000; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+    header { background: #222; padding: 15px; text-align: center; }
+    h1 { margin: 0; }
+    #controls { margin: 20px; text-align: center; }
+    #nfts { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 15px;
+      width: 90%;
+      margin: 20px auto;
+    }
+    .card {
+      padding: 10px;
+      border-radius: 8px;
+      transition: transform 0.2s;
+    }
+    .card img {
+      width: 100%;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .card div {
+  font-family: Arial, sans-serif;  /* одинаковый шрифт на всех устройствах */
+  font-size: 13px;                 /* комфортный размер для NFT */
+  font-weight: 500;                /* немного жирнее для читаемости */
+  color: white;
+  text-align: center;
+  background: #000;
+  padding: 3px 5px;
+  border-radius: 4px;
+    }
+ .card .nft-media-title { /* Новый класс для заголовка изображения */
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  text-align: center;
+  background: #000;
+  padding: 3px 5px;
+  border-radius: 4px;
+  margin-bottom: 5px; /* Добавляем небольшой отступ */
+}
+.card .nft-media {
+  width: 100%;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+/* Стили для карусели изображений */
+.image-carousel {
+  position: relative;
+  overflow: hidden;
+  height: auto; /* Позволяет контейнеру подстраиваться под высоту изображения */
+}
+
+.image-slide {
+  display: none;
+  width: 100%;
+}
+
+.image-slide.active {
+  display: block;
+}
+
+.carousel-controls {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.carousel-button {
+  background: #333;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 0 3px;
+  transition: background 0.2s;
+}
+
+.carousel-button:hover,
+.carousel-button.active {
+  background: gold;
+  color: black;
+}
+
+    .btn { padding: 8px 14px; background: #4caf50; color: #fff; border: none; cursor: pointer; border-radius: 5px; }
+    .btn:hover { background: #45a049; }
+    select, input { padding: 6px; border-radius: 5px; border: 1px solid #444; margin: 5px; }
+    #pagination { margin: 20px; text-align: center; }
+    #status { margin: 10px; font-size: 14px; color: #aaa; }
+
+    /* Боковое меню */
+    #sideMenu {
+      position: fixed;
+      top: 0;
+      right: -250px;
+      width: 250px;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      box-shadow: -3px 0 10px rgba(0,0,0,0.5);
+      transition: right 0.3s ease;
+      padding: 20px;
+      overflow-y: auto;
+      z-index: 1000;
+      border-left: 4px solid gold;
+      border-right: 4px solid gold;
+    }
+    #sideMenu.active { right: 0; }
+    #sideMenu h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+    #sideMenu ul { list-style: none; padding: 0; }
+    #sideMenu ul li {
+      position: relative;
+      height: 60px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+      overflow: hidden;
+      border: 2px solid white;
+      transition: border-color 0.3s;
+    }
+    #sideMenu ul li:hover { opacity: 0.9; }
+    #sideMenu ul li.selected { border-color: gold; }
+    .collection-name {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      background: #000;
+      color: white;
+      padding: 4px 8px;
+      border-top-right-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      transition: color 0.3s;
+    }
+    #sideMenu ul li.selected .collection-name { color: gold; }
+
+    .schema-list {
+      list-style: none;
+      padding-left: 15px;
+      margin: 0 0 8px 0;
+    }
+    .schema-list li {
+      background: #333;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin: 4px 0;
+      cursor: pointer;
+    }
+    .schema-list li:hover { background: #444 !important; }
+
+    /* Кнопка меню */
+    #menuButton {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4caf50;
+      border: none;
+      color: #fff;
+      padding: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 1100;
+    }
+
+    /* Обводка изображения */
+    .card img.selected-img {
+      border: 3px solid gold; /* Оранжевая обводка, можешь изменить на другой цвет */
+      box-shadow: 0 0 10px rgba(255, 152, 0, 0.7); /* Легкое свечение вокруг */
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WAX NFT Viewer (IndexedDB)</h1>
+  </header>
+
+  <button id="menuButton">☰</button>
+
+  <div id="controls">
+    <label>API-нода:</label>
+    <select id="apiNode">
+    <option value="https://aa-api-wax.eosauthority.com">aa-api-wax.eosauthority.com</option>
+    <option value="https://aa.dapplica.io">aa.dapplica.io</option>
+    <option value="https://aa-wax-public1.neftyblocks.com">aa-wax-public1.neftyblocks.com</option>
+    <option value="https://api.waxeastern.cn">api.waxeastern.cn</option>
+    <option value="https://atomic.3dkrender.com">atomic.3dkrender.com</option>
+    <option value="https://atomic-api.wax.cryptolions.io">atomic-api.wax.cryptolions.io</option>
+    <option value="https://atomicassets.ledgerwise.io">atomicassets.ledgerwise.io</option>
+    <option value="https://atomic-wax.a-dex.xyz">atomic-wax.a-dex.xyz</option>
+    <option value="https://atomic.wax.eosrio.io">atomic.wax.eosrio.io</option>
+    <option value="https://atomic-wax-mainnet.wecan.dev">atomic-wax-mainnet.wecan.dev</option>
+    <option value="https://atomic-wax.qaraqol.com">atomic-wax.qaraqol.com</option>
+    <option value="https://atomic-wax.tacocrypto.io">atomic-wax.tacocrypto.io</option>
+    <option value="https://wax-aa.eosdac.io">wax-aa.eosdac.io</option>
+    <option value="https://wax-aa.eu.eosamsterdam.net">wax-aa.eu.eosamsterdam.net</option>
+    <option value="https://wax-atomic.alcor.exchange">wax-atomic.alcor.exchange</option>
+    <option value="https://wax-atomic-api.eosphere.io">wax-atomic-api.eosphere.io</option>
+    <option value="https://wax-atomic.eosiomadrid.io">wax-atomic.eosiomadrid.io</option>
+    <option value="https://wax.eosusa.io">wax.eosusa.io</option>
+    <option value="https://aa.neftyblocks.com">aa.neftyblocks.com</option>
+    </select>
+    <br>
+
+    <label>IPFS-шлюз:</label>
+    <select id="ipfsGateway">
+      <option value="https://ipfs.atomichub.io/ipfs/">ipfs.atomichub.io</option>
+      <option value="https://cloudflare-ipfs.com/ipfs/">cloudflare-ipfs.com</option>
+      <option value="https://ipfs.io/ipfs/">ipfs.io</option>
+      <option value="https://gateway.pinata.cloud/ipfs/">pinata.cloud</option>
+    </select>
+    <br>
+    <label>Размер шрифта:</label>
+    <select id="fontSize"></select>
+    <input type="text" id="account" placeholder="например: mywaxacc.wam">
+    <br>
+    <button class="btn" onclick="loadNFTs(1,true)">🔄 Обновить NFT</button>
+    <button class="btn" onclick="loadNFTs()">Загрузить NFT</button>
+    <div id="status">Статус: ⏳ ждём действие...</div>
+  </div>
+
+  <div id="nfts"></div>
+
+  <div id="pagination">
+    <button class="btn" onclick="prevPage()">⬅ Назад</button>
+    <span id="pageInfo">Страница 1</span>
+    <button class="btn" onclick="nextPage()">Вперёд ➡</button>
+  </div>
+
+  <!-- Выезжающее меню -->
+  <div id="sideMenu">
+    <h2>Коллекции</h2>
+    <ul id="collectionsList"></ul>
+  </div>
+
+<script>
+// ===== IndexedDB функции =====
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("waxNFTdb", 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("nfts")) {
+        db.createObjectStore("nfts", { keyPath: "id" });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveNFTs(account, apiNode, nfts) {
+  const db = await openDB();
+  const tx = db.transaction("nfts", "readwrite");
+  const store = tx.objectStore("nfts");
+  const data = {
+    id: `${account}_${apiNode}`,
+    nfts: nfts,
+    savedAt: Date.now()
+  };
+  store.put(data);
+  return tx.complete;
+}
+
+async function loadNFTsFromDB(account, apiNode) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("nfts", "readonly");
+    const store = tx.objectStore("nfts");
+    const req = store.get(`${account}_${apiNode}`);
+    req.onsuccess = () => resolve(req.result ? req.result.nfts : null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ===== Основная логика =====
+let currentPage = 1;
+const limit = 50; // загрузка по 50
+let allNFTs = [];
+let filteredNFTs = [];
+
+function getIpfsUrl(hash) {
+  const gateway = document.getElementById("ipfsGateway").value;
+  return gateway + hash;
+}
+
+async function loadNFTs(page = 1, forceRefresh = false) {
+  const accountInput = document.getElementById("account");
+  const account = accountInput.value.trim();
+  const apiNode = document.getElementById("apiNode").value;
+  const nftsContainer = document.getElementById("nfts");
+  const pageInfo = document.getElementById("pageInfo");
+  const status = document.getElementById("status");
+
+  if (!account) {
+    alert("Введите WAX аккаунт!");
+    return;
+  }
+
+  localStorage.setItem("lastAccount", account);
+
+  const cached = await loadNFTsFromDB(account, apiNode);
+
+  if (cached && !forceRefresh) {
+    allNFTs = cached;
+    filteredNFTs = allNFTs;
+    renderNFTs(filteredNFTs, page);
+    renderCollections(allNFTs);
+    pageInfo.textContent = `Страница ${currentPage}`;
+    status.textContent = "Статус: 📦 данные из IndexedDB";
+    return;
+  }
+
+  try {
+    status.textContent = "Статус: 🌐 загружаем из API...";
+    const res = await fetch(`${apiNode}/atomicassets/v1/assets?owner=${account}&limit=1000&order=desc&sort=asset_id`);
+    const data = await res.json();
+    showDebug(data);
+
+    if (!data.data || data.data.length === 0) {
+      nftsContainer.innerHTML = `<p style="color:orange">NFT не найдены</p>`;
+      status.textContent = "Статус: ⚠️ нет данных";
+      return;
+    }
+
+    allNFTs = data.data;
+    filteredNFTs = allNFTs;
+    await saveNFTs(account, apiNode, allNFTs);
+
+    renderNFTs(filteredNFTs, page);
+    renderCollections(allNFTs);
+    pageInfo.textContent = `Страница ${currentPage}`;
+    status.textContent = "Статус: ✅ данные из API";
+  } catch (e) {
+    nftsContainer.innerHTML = `<p style="color:red">Ошибка: ${e.message}</p>`;
+    status.textContent = "Статус: ❌ ошибка загрузки";
+  }
+}
+
+function renderNFTs(nfts, page) {
+  const nftsContainer = document.getElementById("nfts");
+  nftsContainer.innerHTML = "";
+
+  const start = (page - 1) * limit;
+  const end = start + limit;
+  const pageItems = nfts.slice(start, end);
+
+  const currentFontSize = document.getElementById("fontSize").value;
+
+  pageItems.forEach(nft => {
+    if (nft.data && nft.schema && nft.schema.format) {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      // Создаем массив для хранения всех изображений NFT
+      const allImages = [];
+      const imageFields = nft.schema.format.filter(field => field.type === 'image');
+      imageFields.forEach(imageField => {
+        const imageName = imageField.name;
+        const ipfsHash = nft.data[imageName];
+        if (ipfsHash) {
+          allImages.push({ name: imageName, hash: ipfsHash });
+        }
+      });
+
+      // Если есть хотя бы одно изображение, создаем карусель
+      if (allImages.length > 0) {
+        // Контейнер для изображений
+        const imageWrapper = document.createElement("div");
+        imageWrapper.className = "image-carousel";
+
+        allImages.forEach((image, index) => {
+          const imageContainer = document.createElement("div");
+          imageContainer.className = "image-slide";
+          if (index === 0) imageContainer.classList.add("active"); // Показываем первое изображение
+
+          const imageTitle = document.createElement("div");
+          imageTitle.className = "nft-media-title";
+          imageTitle.textContent = image.name;
+          imageTitle.style.fontSize = currentFontSize;
+
+          const img = document.createElement("img");
+          img.src = getIpfsUrl(image.hash);
+          img.loading = "lazy";
+          img.className = "nft-media";
+          img.addEventListener("click", () => {
+            document.querySelectorAll('.card img').forEach(i => i.classList.remove('selected-img'));
+            img.classList.add('selected-img');
+          });
+
+          imageContainer.appendChild(imageTitle);
+          imageContainer.appendChild(img);
+          imageWrapper.appendChild(imageContainer);
+        });
+
+        card.appendChild(imageWrapper);
+
+        // Контейнер для кнопок-цифр
+        if (allImages.length > 1) {
+          const controls = document.createElement("div");
+          controls.className = "carousel-controls";
+
+          allImages.forEach((_, index) => {
+            const button = document.createElement("button");
+            button.textContent = index + 1;
+            button.className = "carousel-button";
+            if (index === 0) button.classList.add("active");
+
+            button.addEventListener("click", () => {
+              const slides = controls.parentNode.querySelector(".image-carousel").children;
+              for (let i = 0; i < slides.length; i++) {
+                slides[i].classList.remove("active");
+                controls.children[i].classList.remove("active");
+              }
+              slides[index].classList.add("active");
+              button.classList.add("active");
+            });
+
+            controls.appendChild(button);
+          });
+          card.appendChild(controls);
+        }
+      }
+
+      // Основной заголовок NFT
+      if (nft.name) {
+        const title = document.createElement("div");
+        title.textContent = nft.name;
+        title.style.fontSize = currentFontSize;
+        card.appendChild(title);
+      }
+
+      nftsContainer.appendChild(card);
+    }
+  });
+}
+
+function renderCollections(nfts) {
+  const collectionsList = document.getElementById("collectionsList");
+  collectionsList.innerHTML = "";
+
+  const collectionsMap = {};
+  nfts.forEach(nft => {
+    if (nft.collection?.name) {
+      if (!collectionsMap[nft.collection.name]) {
+        let bannerHash = null;
+      try {
+        const images = JSON.parse(nft.collection.images || "{}");
+        bannerHash = images["banner_1920x500"] || images["banner"] || null;
+      } catch(e) {}
+
+      collectionsMap[nft.collection.name] = {
+        img: bannerHash || nft.collection.img,
+          schemas: new Set()
+        };
+      }
+      if (nft.schema?.schema_name) {
+        collectionsMap[nft.collection.name].schemas.add(nft.schema.schema_name);
+      }
+    }
+  });
+
+  for (let colName in collectionsMap) {
+    const li = document.createElement("li");
+    li.style.backgroundImage = `url(${getIpfsUrl(collectionsMap[colName].img)})`;
+
+    const span = document.createElement("span");
+    span.className = "collection-name";
+    span.textContent = colName;
+    li.appendChild(span);
+
+    li.onclick = () => {
+      // одиночный выбор коллекции
+      document.querySelectorAll("#collectionsList li").forEach(el => el.classList.remove("selected"));
+      li.classList.add("selected");
+
+      filterByCollection(colName);
+
+      if (li.nextSibling && li.nextSibling.classList?.contains("schema-list")) {
+        li.nextSibling.remove();
+        return;
+      }
+
+      const schemaList = document.createElement("ul");
+      schemaList.className = "schema-list";
+
+      collectionsMap[colName].schemas.forEach(schemaName => {
+        const schemaItem = document.createElement("li");
+        schemaItem.textContent = schemaName;
+        schemaItem.onclick = (e) => {
+          e.stopPropagation();
+          filterBySchema(colName, schemaName);
+        };
+        schemaList.appendChild(schemaItem);
+      });
+
+      li.parentNode.insertBefore(schemaList, li.nextSibling);
+    };
+
+    collectionsList.appendChild(li);
+  }
+}
+
+function filterByCollection(collectionName) {
+  currentPage = 1;
+  filteredNFTs = allNFTs.filter(nft => nft.collection?.name === collectionName);
+  renderNFTs(filteredNFTs, currentPage);
+  document.getElementById("pageInfo").textContent = `Коллекция: ${collectionName}`;
+}
+
+function filterBySchema(collectionName, schemaName) {
+  currentPage = 1;
+  filteredNFTs = allNFTs.filter(nft =>
+    nft.collection?.name === collectionName && nft.schema?.schema_name === schemaName
+  );
+  renderNFTs(filteredNFTs, currentPage);
+  document.getElementById("pageInfo").textContent =
+    `Коллекция: ${collectionName} / Схема: ${schemaName}`;
+}
+
+function nextPage() {
+  if (currentPage * limit < filteredNFTs.length) {
+    currentPage++;
+    renderNFTs(filteredNFTs, currentPage);
+  }
+}
+
+function prevPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderNFTs(filteredNFTs, currentPage);
+  }
+}
+
+const fontSizes = [12, 14, 16, 18, 20, 22, 24, 26, 28, 30]; // Массив с размерами шрифта
+
+const fontSizeSelect = document.getElementById("fontSize");
+
+// Создаём элементы <option> динамически
+fontSizes.forEach(size => {
+  const option = document.createElement("option");
+  option.value = `${size}px`;
+  option.textContent = `${size}px`;
+  fontSizeSelect.appendChild(option);
+});
+
+// Добавляем обработчик события для изменения размера шрифта
+fontSizeSelect.addEventListener("change", function() {
+  const fontSize = this.value;
+  document.querySelectorAll('.card div').forEach(title => {
+    title.style.fontSize = fontSize;
+  });
+});
+
+// ===== Меню =====
+const sideMenu = document.getElementById("sideMenu");
+const menuButton = document.getElementById("menuButton");
+
+menuButton.addEventListener("click", () => {
+  sideMenu.classList.toggle("active");
+});
+
+let touchStartX = 0;
+let touchEndX = 0;
+document.addEventListener("touchstart", e => { touchStartX = e.changedTouches[0].screenX; });
+document.addEventListener("touchend", e => {
+  touchEndX = e.changedTouches[0].screenX;
+  if (touchStartX > touchEndX + 100) sideMenu.classList.add("active");
+  else if (touchEndX > touchStartX + 100) sideMenu.classList.remove("active");
+});
+
+window.addEventListener("load", () => {
+  const lastAccount = localStorage.getItem("lastAccount");
+  if (lastAccount) {
+    document.getElementById("account").value = lastAccount;
+    loadNFTs();
+  }
+});
+</script>
+
+<!-- Отладочная панель -->
+<div id="debugPanel" style="position:fixed;bottom:0;left:0;width:100%;max-height:40%;overflow:auto;background:#111;color:#0f0;font-size:12px;padding:10px;border-top:1px solid #333;display:none;z-index:2000;">
+  <button onclick="toggleDebug()" style="float:right;background:#333;color:#fff;border:none;padding:5px 10px;cursor:pointer;">✖</button>
+  <pre id="debugOutput"></pre>
+</div>
+
+<script>
+// ===== Отладочная панель =====
+function showDebug(data) {
+  const panel = document.getElementById("debugPanel");
+  const pre = document.getElementById("debugOutput");
+  pre.textContent = JSON.stringify(data, null, 2);
+  panel.style.display = "block";
+}
+
+function toggleDebug() {
+  const panel = document.getElementById("debugPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+}
+</script>
+</body>
+</html>
